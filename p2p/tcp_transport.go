@@ -23,15 +23,22 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
+// Close implements the Peer interface
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}
+
 type TCPTransportOpts struct {
 	ListenAddr    string
 	HandshakeFunc HandshakeFunc
 	Decoder       Decoder
+	OnPeer        func(Peer) error
 }
 
 type TCPTransport struct {
 	TCPTransportOpts
 	listener net.Listener
+	rpcCh    chan RPC
 
 	mu    sync.RWMutex
 	peers map[net.Addr]Peer
@@ -40,8 +47,15 @@ type TCPTransport struct {
 func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
+		rpcCh:            make(chan RPC),
 	}
 
+}
+
+// Consume implements the Transport interface, which will return a read only channel.
+// for reading the incomming messages received from an other Peer in the network.
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcCh
 }
 
 func (t *TCPTransport) ListenAndAccept() error {
@@ -64,28 +78,38 @@ func (t *TCPTransport) startAcceptLoop() {
 			fmt.Printf("TCP: accept error: %s\n", err)
 		}
 
+		fmt.Printf("new incomming connection %+v\n", conn)
+
 		go t.handleConn(conn)
 	}
 }
 
-type Temp struct{}
-
 func (t *TCPTransport) handleConn(conn net.Conn) {
 	peer := NewTCPPeer(conn, true)
-
-	if err := t.HandshakeFunc(peer); err != nil {
+	var err error
+	defer func() {
+		fmt.Printf("dropping peer connection: %s", err)
 		conn.Close()
-		fmt.Printf("TCP handshake error: %s\n", err)
+	}()
+	if err = t.HandshakeFunc(peer); err != nil {
 		return
 	}
-	// Read loop
-	msg := &Message{}
-	for {
-		if err := t.Decoder.Decode(conn, msg); err != nil {
-			fmt.Printf("TCP error: %s\n", err)
-			continue
+
+	if t.OnPeer != nil {
+		if err = t.OnPeer(peer); err != nil {
+			return
 		}
-		fmt.Printf("message: %+v\n", msg)
 	}
-	//fmt.Printf("new incomming connection %+v\n", peer)
+
+	// Read loop
+	rpc := RPC{}
+	for {
+		err = t.Decoder.Decode(conn, &rpc)
+		if err != nil {
+			return
+		}
+
+		rpc.From = conn.RemoteAddr()
+		t.rpcCh <- rpc
+	}
 }
