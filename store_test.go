@@ -28,6 +28,9 @@ func TestStore(t *testing.T) {
 	err := s.writeStream(key, bytes.NewReader(data))
 	assert.Nil(t, err)
 
+	ok := s.Has(key)
+	assert.True(t, ok)
+
 	r, err := s.Read(key)
 	assert.Nil(t, err)
 
