@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
 	"sync"
 
@@ -35,6 +38,29 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		quitch:         make(chan struct{}),
 		peers:          make(map[string]p2p.Peer),
 	}
+}
+
+type Payload struct {
+	Key  string
+	Data []byte
+}
+
+func (s *FileServer) broadcast(p Payload) error {
+	buf := new(bytes.Buffer)
+	for _, peer := range s.peers {
+		if err := gob.NewEncoder(buf).Encode(p); err != nil {
+			return err
+		}
+		peer.Send(buf.Bytes())
+	}
+	return nil
+}
+
+func (s *FileServer) StoreData(key string, r io.Reader) error {
+	//1. Store file to disk
+	//2. Broadcast this file to all known peers in the network
+
+	return nil
 }
 
 func (s *FileServer) Stop() {

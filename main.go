@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 
@@ -41,6 +42,7 @@ func main() {
 		}
 	}()
 	s2.Start()
-
+	data := bytes.NewReader([]byte("big file here"))
+	s2.StoreData("key", data)
 	select {}
 }
