@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/LDM-A/GoDecentralizedFileServer/p2p"
 )
@@ -41,7 +42,9 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	s2.Start()
+	time.Sleep(2 * time.Second)
+	go s2.Start()
+	time.Sleep(2 * time.Second)
 	data := bytes.NewReader([]byte("big file here"))
 	s2.StoreData("key", data)
 	select {}
